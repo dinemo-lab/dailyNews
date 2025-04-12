@@ -3,6 +3,11 @@ import 'dotenv/config'
 import axios from 'axios';
 import nodemailer from 'nodemailer';
 import { CronJob } from 'cron';
+import express from 'express';
+
+// Create Express app
+const app = express();
+const PORT = process.env.PORT || 3000;
 
 // Set up the transporter for email
 const transporter = nodemailer.createTransport({
@@ -274,7 +279,6 @@ const createHTMLEmail = (content) => {
   `;
 };
 
-// Function to send email with article-focused current affairs
 // Function to send email with article-focused current affairs to multiple recipients
 const sendEmail = async () => {
   try {
@@ -298,13 +302,46 @@ const sendEmail = async () => {
       
       await transporter.sendMail(mailOptions);
       console.log(`Current affairs email sent successfully to ${recipients}`);
+      return true;
     } else {
       console.log('No current affairs content was generated');
+      return false;
     }
   } catch (error) {
     console.error('Error sending email:', error);
+    return false;
   }
 };
+
+// Create a simple endpoint for health checks
+app.get('/', (req, res) => {
+  res.send('Current Affairs Service is running!');
+});
+
+// Optional: Create a manual trigger endpoint (protected with a simple key)
+app.get('/send-now', async (req, res) => {
+  const apiKey = req.query.key;
+  
+  if (apiKey !== process.env.API_KEY) {
+    return res.status(401).send('Unauthorized');
+  }
+  
+  try {
+    const result = await sendEmail();
+    if (result) {
+      res.send('Email sent successfully!');
+    } else {
+      res.status(500).send('Failed to send email');
+    }
+  } catch (error) {
+    res.status(500).send(`Error: ${error.message}`);
+  }
+});
+
+// Start the Express server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
 // Cron job to send the current affairs every day at 6 AM
 // Format: minute hour day-of-month month day-of-week
@@ -312,9 +349,9 @@ const job = new CronJob('0 6 * * *', async () => {
   await sendEmail();
 });
 
-// Uncomment this line to test immediately
-sendEmail();
-
 // Start the cron job
 job.start();
 console.log('Current affairs service started. Email will be sent daily at 6 AM.');
+
+// Uncomment this line to test immediately (optional)
+// sendEmail();
